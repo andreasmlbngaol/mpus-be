@@ -1,0 +1,30 @@
+# --- Rust build output ---
+/target
+
+# --- Python tooling (the ONNX export helper) ---
+tools/.venv/
+__pycache__/
+*.pyc
+
+# --- Secrets and local data (never commit) ---
+.env
+.env.*
+!.env.example
+/models
+/uploads
+firebase-debug.log
+fcm-service-account.json
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+
+# --- AI agent artifacts ---
+CLAUDE.md
+AGENTS.md
+.claude/
+.agents/
+.cursor/
+.cursorrules
+skills-lock.json

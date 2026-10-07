@@ -1,0 +1,34 @@
+# mpus systemd unit.
+# Install to /etc/systemd/system/mpus.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now mpus
+#
+# Adjust User, Group, WorkingDirectory, and ExecStart if you move the app elsewhere.
+
+[Unit]
+Description=mpus API server (cat identification)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sana
+Group=sana
+WorkingDirectory=/home/sana/mpus
+EnvironmentFile=/home/sana/mpus/.env
+ExecStart=/home/sana/mpus/mpus
+Restart=on-failure
+RestartSec=3
+
+# Keep the tiny box safe: cap the app so Postgres cannot get squeezed out.
+MemoryMax=600M
+
+# Modest hardening (nothing here needs root or /tmp sharing).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,91 @@
+name: Deploy backend
+
+# Every push to the main branch ships the binary to the VM. Nothing is hardcoded: host,
+# user, path, service name, and the health URL are repository variables you can change in
+# Settings > Secrets and variables > Actions > Variables without touching this file.
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Never let two deploys race the same box.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release --locked
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+            echo "Missing SSH_PRIVATE_KEY secret."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Trust the host once so scp/ssh do not prompt.
+          ssh-keyscan -H "${{ vars.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ship the binary
+        env:
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER: ${{ vars.DEPLOY_USER }}
+          PATH_REMOTE: ${{ vars.DEPLOY_PATH }}
+          BIN: ${{ vars.DEPLOY_BINARY_NAME || 'mpus' }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key "$USER@$HOST" "mkdir -p '$PATH_REMOTE'"
+          scp -i ~/.ssh/deploy_key target/release/mpus "$USER@$HOST:$PATH_REMOTE/$BIN.new"
+
+      - name: Swap, restart, and verify
+        env:
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER: ${{ vars.DEPLOY_USER }}
+          PATH_REMOTE: ${{ vars.DEPLOY_PATH }}
+          SERVICE: ${{ vars.DEPLOY_SERVICE_NAME || 'mpus' }}
+          BIN: ${{ vars.DEPLOY_BINARY_NAME || 'mpus' }}
+          HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key "$USER@$HOST" "
+            set -e
+            cd '$PATH_REMOTE'
+            cp -f '$BIN' '$BIN.bak'
+            mv -f '$BIN.new' '$BIN'
+            chmod +x '$BIN'
+            sudo systemctl restart '$SERVICE'
+            sleep 3
+            systemctl is-active '$SERVICE'
+          "
+          if [ -n "${HEALTH_URL:-}" ]; then
+            echo "Checking $HEALTH_URL"
+            for i in 1 2 3 4 5; do
+              if curl -fsS "$HEALTH_URL" >/dev/null; then
+                echo "Health check passed."
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "Health check failed after retries."
+            exit 1
+          fi
