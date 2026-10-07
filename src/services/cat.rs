@@ -79,7 +79,8 @@ pub async fn detail(state: &AppState, cat_id: Uuid, viewer: Option<Uuid>) -> Res
     let names = sqlx::query_as::<_, NameView>(
         "SELECT n.id, n.user_id, u.nickname, n.name,
                 count(l.user_id) AS likes,
-                coalesce(bool_or(l.user_id = $2), false) AS liked_by_me
+                coalesce(bool_or(l.user_id = $2), false) AS liked_by_me,
+                coalesce(n.user_id = $2, false) AS mine
          FROM cat_names n
          JOIN users u ON u.id = n.user_id
          LEFT JOIN name_likes l ON l.name_id = n.id
@@ -106,7 +107,8 @@ pub async fn detail(state: &AppState, cat_id: Uuid, viewer: Option<Uuid>) -> Res
     let reviews = sqlx::query_as::<_, ReviewView>(
         "SELECT r.id, r.user_id, u.nickname, r.body, r.rating, r.created_at,
                 count(l.user_id) AS likes,
-                coalesce(bool_or(l.user_id = $2), false) AS liked_by_me
+                coalesce(bool_or(l.user_id = $2), false) AS liked_by_me,
+                coalesce(r.user_id = $2, false) AS mine
          FROM cat_reviews r
          JOIN users u ON u.id = r.user_id
          LEFT JOIN review_likes l ON l.review_id = r.id

@@ -117,6 +117,8 @@ pub struct NameView {
     pub name: String,
     pub likes: i64,
     pub liked_by_me: bool,
+    /// True when the viewer wrote this name. The client hides the composer then.
+    pub mine: bool,
 }
 
 /// A review plus its like tally, from one viewer's perspective.
@@ -129,6 +131,8 @@ pub struct ReviewView {
     pub rating: i16,
     pub likes: i64,
     pub liked_by_me: bool,
+    /// True when the viewer wrote this review. The client hides the composer then.
+    pub mine: bool,
     pub created_at: DateTime<Utc>,
 }
 
